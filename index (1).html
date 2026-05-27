@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Næsby BK U19 — Physical Performance</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#ffffff;--bg2:#f5f5f4;--bg3:#eeede9;
+    --text:#1a1917;--text2:#5f5e5a;--text3:#a09f9b;
+    --border:#e2e0db;--border2:#d0cec8;
+    --radius:10px;--radius-sm:6px;
+    --blue:#185FA5;--green:#3B6D11;--green-bg:#EAF3DE;
+    --amber:#854F0B;--amber-bg:#FAEEDA;
+    --red:#A32D2D;--red-bg:#FCEBEB;--blue-bg:#E6F1FB;
+  }
+  @media(prefers-color-scheme:dark){
+    :root{--bg:#1a1917;--bg2:#242320;--bg3:#2e2c29;--text:#f0ede8;--text2:#b4b2a9;--text3:#6e6c66;--border:#333129;--border2:#3d3b33;--green-bg:#1a2e0a;--amber-bg:#2e1e08;--red-bg:#2e0e0e;--blue-bg:#0a1e36;}
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+  .hidden{display:none!important}
+  .container{max-width:900px;margin:0 auto;padding:1.5rem 1rem}
+  .card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem;margin-bottom:1rem}
+  .metric-card{background:var(--bg2);border-radius:var(--radius-sm);padding:.75rem 1rem}
+  .metric-label{font-size:12px;color:var(--text2);margin-bottom:4px}
+  .metric-value{font-size:22px;font-weight:600}
+  .metric-unit{font-size:12px;color:var(--text3);margin-left:2px;font-weight:400}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  @media(max-width:600px){.grid4{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.grid3{grid-template-columns:1fr 1fr}.inp-row3{grid-template-columns:1fr 1fr!important}.session-hdr,.session-row{grid-template-columns:70px 70px 50px 50px 50px 28px!important;font-size:11px}}
+  .section-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.75rem;font-weight:600}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 9px;border-radius:var(--radius-sm);font-weight:600}
+  .badge-green{background:var(--green-bg);color:var(--green)}
+  .badge-amber{background:var(--amber-bg);color:var(--amber)}
+  .badge-red{background:var(--red-bg);color:var(--red)}
+  .badge-blue{background:var(--blue-bg);color:var(--blue)}
+  .badge-gray{background:var(--bg2);color:var(--text2)}
+  input,select{padding:8px 11px;font-size:14px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg);color:var(--text);width:100%;outline:none;transition:border-color .15s}
+  input:focus,select:focus{border-color:var(--blue)}
+  .btn{padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;font-weight:500;transition:background .15s;white-space:nowrap}
+  .btn:hover{background:var(--bg2)}
+  .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .btn-primary:hover{background:#1a6dbf}
+  .btn-danger{color:var(--red)}
+  .btn-sm{padding:4px 10px;font-size:12px}
+  .player-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+  .player-row:last-child{border-bottom:none}
+  .player-row:hover{background:var(--bg2);margin:0 -1.25rem;padding:11px 1.25rem}
+  .avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+  .session-hdr{display:grid;grid-template-columns:85px 85px 65px 80px 65px 32px;gap:6px;padding:0 0 7px;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);margin-bottom:2px;font-weight:600}
+  .session-row{display:grid;grid-template-columns:85px 85px 65px 80px 65px 32px;gap:6px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .session-row:last-child{border-bottom:none}
+  .inp-label{font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:500}
+  .inp-group{margin-bottom:12px}
+  .inp-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .inp-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+  .acwr-gauge{position:relative;height:13px;background:linear-gradient(to right,#bfdbfe 0%,#bbf7d0 22%,#bbf7d0 50%,#fde68a 65%,#fecaca 80%,#fecaca 100%);border-radius:7px;margin:.5rem 0}
+  .acwr-needle{position:absolute;top:-5px;width:4px;height:23px;background:var(--text);border-radius:2px;transform:translateX(-50%);transition:left .5s cubic-bezier(.34,1.56,.64,1)}
+  .toast{position:fixed;bottom:24px;right:24px;background:#1a1917;color:#f0ede8;padding:10px 18px;border-radius:var(--radius-sm);font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+  .toast.show{opacity:1}
+  .spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-msg{color:var(--red);font-size:13px;margin-bottom:10px;padding:8px 12px;background:var(--red-bg);border-radius:var(--radius-sm)}
+  .info-box{font-size:13px;color:var(--text2);padding:.75rem 1rem;background:var(--bg2);border-radius:var(--radius-sm);margin-top:.75rem;line-height:1.5}
+  .nav-btn-row{display:flex;gap:8px;flex-wrap:wrap}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;flex-wrap:wrap;gap:10px}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- LOGIN -->
+<div id="view-login">
+  <div style="max-width:380px;margin:3rem auto">
+    <div style="text-align:center;margin-bottom:2rem">
+      <div style="font-size:32px;font-weight:800;color:var(--blue)">Næsby<span style="color:var(--text3);font-weight:400">BK</span></div>
+      <div style="font-size:15px;font-weight:600;margin-top:.5rem">U19 Physical Performance</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:4px">Sign in to view your dashboard</div>
+    </div>
+    <div class="card">
+      <div class="inp-group"><div class="inp-label">Email</div><input type="email" id="login-email" placeholder="your@email.dk" autocomplete="email"></div>
+      <div class="inp-group"><div class="inp-label">Password</div><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div id="login-error" class="error-msg hidden"></div>
+      <button class="btn btn-primary" style="width:100%;padding:11px;font-size:15px" onclick="doLogin()" id="login-btn">Sign in</button>
+      <div id="login-debug" style="margin-top:10px;font-size:11px;color:var(--text3);word-break:break-all"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COACH -->
+<div id="view-coach" class="hidden">
+  <div class="header">
+    <div>
+      <div style="font-size:20px;font-weight:700">Load Management</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:3px">Næsby BK U19 — Coach view</div>
+    </div>
+    <div class="nav-btn-row">
+      <button class="btn" onclick="showCoachTab('players')">Squad</button>
+      <button class="btn" onclick="showCoachTab('add-player')">+ Add player</button>
+      <button class="btn btn-primary" onclick="showCoachTab('log-session')">+ Log session</button>
+      <button class="btn btn-danger btn-sm" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <div id="coach-tab-players">
+    <div id="squad-summary" class="grid3" style="margin-bottom:1.5rem"></div>
+    <div class="card">
+      <div class="section-label">Squad — current ACWR status</div>
+      <div id="squad-list"><div style="text-align:center;padding:2rem"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <div id="coach-tab-player-detail" class="hidden"></div>
+
+  <div id="coach-tab-add-player" class="hidden">
+    <div style="max-width:500px">
+      <button class="btn btn-sm" style="margin-bottom:1rem" onclick="showCoachTab('players')">← Back</button>
+      <div class="card">
+        <div class="section-label">Add new player</div>
+        <div class="inp-row2">
+          <div class="inp-group"><div class="inp-label">Full name</div><input type="text" id="ap-name" placeholder="Jonas Hansen"></div>
+          <div class="inp-group"><div class="inp-label">Position</div>
+            <select id="ap-pos"><option>GK</option><option>CB</option><option>LB</option><option>RB</option><option>DM</option><option>CM</option><option>AM</option><option>LW</option><option>RW</option><option>ST</option></select>
+          </div>
+        </div>
+        <div class="inp-row2">
+          <div class="inp-group"><div class="inp-label">Email (player login)</div><input type="email" id="ap-email" placeholder="player@email.dk"></div>
+          <div class="inp-group"><div class="inp-label">Password</div><input type="text" id="ap-pass" placeholder="set a password"></div>
+        </div>
+        <button class="btn btn-primary" style="width:100%;padding:11px" onclick="addPlayer()">Add player</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="coach-tab-log-session" class="hidden">
+    <div style="max-width:620px">
+      <button class="btn btn-sm" style="margin-bottom:1rem" onclick="showCoachTab('players')">← Back</button>
+      <div class="card">
+        <div class="section-label">Log session</div>
+        <div class="inp-row2">
+          <div class="inp-group"><div class="inp-label">Player</div><select id="ls-player"></select></div>
+          <div class="inp-group"><div class="inp-label">Date</div><input type="date" id="ls-date"></div>
+        </div>
+        <div class="inp-row2">
+          <div class="inp-group"><div class="inp-label">Session type</div>
+            <select id="ls-type"><option>Match</option><option>MD-1</option><option>MD+1</option><option>MD-2</option><option>Training</option><option>Recovery</option><option>Rest</option></select>
+          </div>
+          <div class="inp-group"><div class="inp-label">RPE (1–10)</div><input type="number" id="ls-rpe" min="1" max="10" placeholder="7"></div>
+        </div>
+        <div class="section-label" style="margin-top:.5rem">StatSports GPS</div>
+        <div class="inp-row3">
+          <div class="inp-group"><div class="inp-label">Total distance (m)</div><input type="number" id="ls-td" placeholder="11901"></div>
+          <div class="inp-group"><div class="inp-label">HSR (m)</div><input type="number" id="ls-hsr" placeholder="695"></div>
+          <div class="inp-group"><div class="inp-label">Sprint distance (m)</div><input type="number" id="ls-sp" placeholder="534"></div>
+        </div>
+        <div class="inp-row3">
+          <div class="inp-group"><div class="inp-label">No of sprints</div><input type="number" id="ls-ns" placeholder="23"></div>
+          <div class="inp-group"><div class="inp-label">Accelerations</div><input type="number" id="ls-acc" placeholder="44"></div>
+          <div class="inp-group"><div class="inp-label">Decelerations</div><input type="number" id="ls-dec" placeholder="54"></div>
+        </div>
+        <div class="inp-row2">
+          <div class="inp-group"><div class="inp-label">Max speed (m/s)</div><input type="number" id="ls-maxv" placeholder="8.54" step="0.01"></div>
+          <div class="inp-group"><div class="inp-label">High intensity dist (m)</div><input type="number" id="ls-hid" placeholder="1952"></div>
+        </div>
+        <div class="inp-row2">
+          <div class="inp-group"><div class="inp-label">Duration (min)</div><input type="number" id="ls-dur" placeholder="90"></div>
+          <div class="inp-group"><div class="inp-label">Override load (optional)</div><input type="number" id="ls-load" placeholder="Auto-calculated"></div>
+        </div>
+        <div class="info-box">Session load = <strong>Total Distance × (RPE ÷ 10)</strong>. Without GPS: <strong>Duration × RPE</strong>.</div>
+        <button class="btn btn-primary" style="width:100%;padding:11px;margin-top:1rem" onclick="logSession()">Save session</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PLAYER -->
+<div id="view-player" class="hidden">
+  <div class="header">
+    <div>
+      <div style="font-size:20px;font-weight:700" id="player-welcome">My dashboard</div>
+      <div style="font-size:13px;color:var(--text2);margin-top:3px">Physical performance · Næsby BK U19</div>
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="doLogout()">Sign out</button>
+  </div>
+  <div id="player-content"><div style="text-align:center;padding:3rem"><div class="spinner"></div></div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div>
+
+<script>
+const SURL = 'https://rjfkvxpwkgejozumuxmz.supabase.co';
+const SKEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZmt2eHB3a2dlam96dW11eG16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MjI4NDIsImV4cCI6MjA5NTE5ODg0Mn0.VHN8C9XaPfr0TrLiIzEhffxrlyAexfQoaKxdKuSBOJA';
+const sb = supabase.createClient(SURL, SKEY);
+
+let currentUser = null;
+let allPlayers = [];
+let chartW = null, chartA = null;
+const AC = ['#dbeafe|#1e40af','#d1fae5|#065f46','#fef3c7|#92400e','#fce7f3|#9d174d','#ede9fe|#4c1d95','#dcfce7|#14532d'];
+const ini = n => (n||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+const avc = i => AC[i%AC.length];
+const nv = id => parseFloat(document.getElementById(id)?.value)||null;
+
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-error');
+  const dbg=document.getElementById('login-debug');
+  const btn=document.getElementById('login-btn');
+  errEl.classList.add('hidden');
+  dbg.textContent='';
+  if(!email||!pass){errEl.textContent='Please enter your email and password.';errEl.classList.remove('hidden');return;}
+  btn.textContent='Signing in...';btn.disabled=true;
+
+  try {
+    dbg.textContent='Connecting to database...';
+    const res = await fetch(`${SURL}/rest/v1/players?email=eq.${encodeURIComponent(email)}&password=eq.${encodeURIComponent(pass)}&select=*`, {
+      headers: {
+        'apikey': SKEY,
+        'Authorization': 'Bearer '+SKEY,
+        'Content-Type': 'application/json'
+      }
+    });
+    dbg.textContent='Response status: '+res.status;
+    const data = await res.json();
+    dbg.textContent='Found '+data.length+' matching user(s)';
+
+    if(!data||data.length===0){
+      errEl.textContent='Invalid email or password.';
+      errEl.classList.remove('hidden');
+      btn.textContent='Sign in';btn.disabled=false;
+      return;
+    }
+
+    if(data.error){
+      errEl.textContent='DB error: '+data.message;
+      errEl.classList.remove('hidden');
+      btn.textContent='Sign in';btn.disabled=false;
+      return;
+    }
+
+    currentUser=data[0];
+    dbg.textContent='';
+    document.getElementById('view-login').classList.add('hidden');
+    if(currentUser.role==='coach'){document.getElementById('view-coach').classList.remove('hidden');loadCoachView();}
+    else{document.getElementById('view-player').classList.remove('hidden');loadPlayerView(currentUser);}
+  } catch(err) {
+    dbg.textContent='Error: '+err.message;
+    errEl.textContent='Connection error. Check console.';
+    errEl.classList.remove('hidden');
+  }
+  btn.textContent='Sign in';btn.disabled=false;
+}
+
+function doLogout(){
+  currentUser=null;
+  ['view-coach','view-player'].forEach(v=>document.getElementById(v).classList.add('hidden'));
+  document.getElementById('view-login').classList.remove('hidden');
+  document.getElementById('login-password').value='';
+  document.getElementById('login-debug').textContent='';
+}
+
+function showCoachTab(tab){
+  ['players','add-player','log-session','player-detail'].forEach(t=>document.getElementById('coach-tab-'+t).classList.add('hidden'));
+  document.getElementById('coach-tab-'+tab).classList.remove('hidden');
+}
+
+async function loadCoachView(){
+  showCoachTab('players');
+  const res=await fetch(`${SURL}/rest/v1/players?role=neq.coach&order=name`,{headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY}});
+  allPlayers=await res.json()||[];
+  const sel=document.getElementById('ls-player');
+  sel.innerHTML=allPlayers.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  document.getElementById('ls-date').value=new Date().toISOString().split('T')[0];
+  renderSquad();
+}
+
+async function renderSquad(){
+  const res=await fetch(`${SURL}/rest/v1/sessions?select=*`,{headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY}});
+  const all=await res.json()||[];
+  const acwrList=allPlayers.map(p=>({...p,acwr:calcACWR(all.filter(s=>s.player_id===p.id))}));
+  const highRisk=acwrList.filter(p=>p.acwr.ratio>1.5).length;
+  const caution=acwrList.filter(p=>p.acwr.ratio>1.3&&p.acwr.ratio<=1.5).length;
+  document.getElementById('squad-summary').innerHTML=`
+    <div class="metric-card"><div class="metric-label">Players tracked</div><div class="metric-value">${allPlayers.length}</div></div>
+    <div class="metric-card" style="background:var(--amber-bg)"><div class="metric-label" style="color:var(--amber)">Caution zone</div><div class="metric-value" style="color:var(--amber)">${caution}</div></div>
+    <div class="metric-card" style="background:var(--red-bg)"><div class="metric-label" style="color:var(--red)">High risk</div><div class="metric-value" style="color:var(--red)">${highRisk}</div></div>`;
+  const list=document.getElementById('squad-list');
+  if(!allPlayers.length){list.innerHTML='<div style="color:var(--text3);font-size:14px;text-align:center;padding:2rem">No players yet. Click "+ Add player" to get started.</div>';return;}
+  list.innerHTML=acwrList.map((p,i)=>{
+    const [bg,fg]=avc(i).split('|');
+    const ps=all.filter(s=>s.player_id===p.id);
+    const last=[...ps].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+    const lastDate=last?new Date(last.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'—';
+    return `<div class="player-row" onclick="openPlayerDetail('${p.id}')">
+      <div class="avatar" style="width:40px;height:40px;background:${bg};color:${fg}">${ini(p.name)}</div>
+      <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${p.name}</div>
+      <div style="font-size:12px;color:var(--text2)">${p.position||''} · ${ps.length} session${ps.length!==1?'s':''} · last: ${lastDate}</div></div>
+      <div>${acwrBadge(p.acwr.ratio)}</div>
+      <span style="font-size:18px;color:var(--text3);margin-left:8px">›</span>
+    </div>`;
+  }).join('');
+}
+
+async function openPlayerDetail(playerId){
+  showCoachTab('player-detail');
+  const player=allPlayers.find(p=>p.id===playerId);
+  const res=await fetch(`${SURL}/rest/v1/sessions?player_id=eq.${playerId}&order=date`,{headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY}});
+  const sessions=await res.json()||[];
+  renderPlayerDetail(player,sessions,'coach-tab-player-detail',true);
+}
+
+async function addPlayer(){
+  const name=document.getElementById('ap-name').value.trim();
+  const email=document.getElementById('ap-email').value.trim();
+  const pass=document.getElementById('ap-pass').value.trim();
+  const pos=document.getElementById('ap-pos').value;
+  if(!name||!email||!pass){toast('Please fill in all fields');return;}
+  const res=await fetch(`${SURL}/rest/v1/players`,{method:'POST',headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({name,email,password:pass,position:pos,role:'player'})});
+  if(!res.ok){const e=await res.text();toast('Error: '+e);return;}
+  toast(name+' added!');
+  document.getElementById('ap-name').value='';document.getElementById('ap-email').value='';document.getElementById('ap-pass').value='';
+  loadCoachView();
+}
+
+async function logSession(){
+  const playerId=document.getElementById('ls-player').value;
+  const date=document.getElementById('ls-date').value;
+  if(!playerId||!date){toast('Select a player and date');return;}
+  const player=allPlayers.find(p=>p.id===playerId);
+  const td=nv('ls-td'),rpe=nv('ls-rpe'),dur=nv('ls-dur'),ov=nv('ls-load');
+  const load=ov||(td&&rpe?Math.round(td*(rpe/10)):dur&&rpe?Math.round(dur*rpe):null);
+  const res=await fetch(`${SURL}/rest/v1/sessions`,{method:'POST',headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({player_id:playerId,player_name:player?.name||'',date,type:document.getElementById('ls-type').value,rpe,td,hsr:nv('ls-hsr'),sp:nv('ls-sp'),ns:nv('ls-ns'),acc:nv('ls-acc'),dec:nv('ls-dec'),maxv:nv('ls-maxv'),hid:nv('ls-hid'),dur,load})});
+  if(!res.ok){const e=await res.text();toast('Error: '+e);return;}
+  toast('Session saved!');
+  ['ls-td','ls-hsr','ls-sp','ls-ns','ls-acc','ls-dec','ls-maxv','ls-hid','ls-dur','ls-load','ls-rpe'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderSquad();showCoachTab('players');
+}
+
+async function deleteSession(sessionId,playerId,isCoach){
+  if(!confirm('Delete this session?'))return;
+  await fetch(`${SURL}/rest/v1/sessions?id=eq.${sessionId}`,{method:'DELETE',headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY}});
+  toast('Deleted');
+  if(isCoach)openPlayerDetail(playerId);else loadPlayerView(currentUser);
+}
+
+async function loadPlayerView(player){
+  document.getElementById('player-welcome').textContent='Hi, '+player.name.split(' ')[0]+' 👋';
+  const res=await fetch(`${SURL}/rest/v1/sessions?player_id=eq.${player.id}&order=date`,{headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY}});
+  const sessions=await res.json()||[];
+  renderPlayerDetail(player,sessions,'player-content',false);
+}
+
+function renderPlayerDetail(player,ps,containerId,isCoach){
+  if(chartW){try{chartW.destroy()}catch(e){}}
+  if(chartA){try{chartA.destroy()}catch(e){}}
+  const ac2=calcACWR(ps);
+  const ratio=ac2.ratio;
+  const idx=allPlayers.findIndex(p=>p.id===player.id);
+  const [abg,afg]=avc(idx<0?0:idx).split('|');
+  const needlePct=ratio?Math.min(98,Math.max(2,(ratio/2)*100)):50;
+  let rec='';
+  if(!ratio)rec='No sessions logged yet.';
+  else if(ratio<0.8)rec='⬇ Under-loaded. Consider gradually increasing training volume.';
+  else if(ratio<=1.3)rec='✓ Optimal load zone. Training volume is well-balanced.';
+  else if(ratio<=1.5)rec='⚠ Approaching high-risk zone. Prioritise recovery in the next session.';
+  else rec='🔴 High-risk zone. Rest and recovery are the priority right now.';
+  const weeks=[];
+  for(let w=5;w>=0;w--){
+    const end=new Date();end.setHours(23,59,59,999);
+    const wEnd=new Date(end);wEnd.setDate(wEnd.getDate()-w*7);
+    const wStart=new Date(wEnd);wStart.setDate(wStart.getDate()-6);
+    const load=ps.filter(s=>{const d=new Date(s.date);return d>=wStart&&d<=wEnd;}).reduce((s,x)=>s+(x.load||0),0);
+    weeks.push({label:'W'+(6-w),load});
+  }
+  const acwrTL=[];
+  for(let d=27;d>=0;d--){const ref=new Date();ref.setDate(ref.getDate()-d);acwrTL.push({date:ref.toLocaleDateString('en-GB',{day:'numeric',month:'short'}),ratio:calcACWR(ps,ref).ratio});}
+  const lastSession=[...ps].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+  const sorted=[...ps].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.getElementById(containerId).innerHTML=`
+    ${isCoach?'<button class="btn btn-sm" style="margin-bottom:1rem" onclick="showCoachTab(\'players\')">← Squad</button>':''}
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:1.5rem">
+      <div class="avatar" style="width:52px;height:52px;font-size:17px;background:${abg};color:${afg}">${ini(player.name)}</div>
+      <div><div style="font-size:20px;font-weight:700">${player.name}</div>
+      <div style="font-size:13px;color:var(--text2)">${player.position||''} · ${ps.length} sessions logged</div></div>
+    </div>
+    <div class="grid4" style="margin-bottom:1rem">
+      <div class="metric-card"><div class="metric-label">ACWR</div><div class="metric-value" style="color:${acwrColor(ratio)}">${ratio||'—'}</div></div>
+      <div class="metric-card"><div class="metric-label">Acute load (7d)</div><div class="metric-value">${ac2.acute}<span class="metric-unit">au</span></div></div>
+      <div class="metric-card"><div class="metric-label">Chronic avg (28d)</div><div class="metric-value">${ac2.chronic}<span class="metric-unit">au</span></div></div>
+      <div class="metric-card"><div class="metric-label">Status</div><div style="margin-top:6px">${acwrBadge(ratio)}</div></div>
+    </div>
+    <div class="card">
+      <div class="section-label">ACWR load gauge</div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:5px">
+        <span>Under &lt;0.8</span><span>Optimal 0.8–1.3</span><span>Caution 1.3–1.5</span><span>Risk &gt;1.5</span>
+      </div>
+      <div class="acwr-gauge"><div class="acwr-needle" style="left:${needlePct}%"></div></div>
+      <div class="info-box">${rec}</div>
+    </div>
+    <div class="grid2" style="margin-bottom:1rem;align-items:start">
+      <div class="card"><div class="section-label">Weekly load — last 6 weeks</div><div style="position:relative;height:190px"><canvas id="cw-${containerId}"></canvas></div></div>
+      <div class="card"><div class="section-label">ACWR trend — last 28 days</div><div style="position:relative;height:190px"><canvas id="ca-${containerId}"></canvas></div></div>
+    </div>
+    ${lastSession?`<div class="card">
+      <div class="section-label">Last session — ${new Date(lastSession.date).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'})} · ${lastSession.type}</div>
+      <div class="grid4">
+        ${lastSession.td?`<div class="metric-card"><div class="metric-label">Total distance</div><div style="font-size:16px;font-weight:600">${(+lastSession.td).toLocaleString()}<span class="metric-unit">m</span></div></div>`:''}
+        ${lastSession.hsr?`<div class="metric-card"><div class="metric-label">HSR</div><div style="font-size:16px;font-weight:600">${lastSession.hsr}<span class="metric-unit">m</span></div></div>`:''}
+        ${lastSession.maxv?`<div class="metric-card"><div class="metric-label">Max speed</div><div style="font-size:16px;font-weight:600">${lastSession.maxv}<span class="metric-unit">m/s</span></div></div>`:''}
+        ${lastSession.load?`<div class="metric-card"><div class="metric-label">Session load</div><div style="font-size:16px;font-weight:600">${lastSession.load}<span class="metric-unit">au</span></div></div>`:''}
+      </div></div>`:''}
+    <div class="card">
+      <div class="section-label">Session history</div>
+      <div class="session-hdr"><span>Date</span><span>Type</span><span>Load</span><span>Distance</span><span>ACWR</span><span></span></div>
+      ${sorted.map(s=>{const r=calcACWR(ps,new Date(s.date)).ratio;return`<div class="session-row">
+        <span style="color:var(--text2)">${new Date(s.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
+        <span>${s.type}</span><span style="font-weight:600">${s.load||'—'}</span>
+        <span style="color:var(--text2)">${s.td?(+s.td).toLocaleString()+'m':'—'}</span>
+        <span style="color:${acwrColor(r)};font-weight:600">${r?r.toFixed(2):'—'}</span>
+        ${isCoach?`<button class="btn btn-danger btn-sm" onclick="deleteSession('${s.id}','${player.id}',true)">✕</button>`:'<span></span>'}
+      </div>`;}).join('')||'<div style="color:var(--text3);font-size:13px;padding:.75rem 0">No sessions yet.</div>'}
+    </div>`;
+  requestAnimationFrame(()=>{
+    const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
+    const gc=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.06)';
+    const tc=isDark?'#b4b2a9':'#6b7280';
+    const wc=document.getElementById('cw-'+containerId);
+    if(wc)chartW=new Chart(wc,{type:'bar',data:{labels:weeks.map(w=>w.label),datasets:[{data:weeks.map(w=>w.load),backgroundColor:'#3b82f6',borderRadius:5,label:'Load'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}});
+    const ac3=document.getElementById('ca-'+containerId);
+    if(ac3)chartA=new Chart(ac3,{type:'line',data:{labels:acwrTL.map(p=>p.date),datasets:[{data:acwrTL.map(p=>p.ratio),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',fill:true,tension:0.3,pointRadius:2,label:'ACWR'},{data:Array(28).fill(1.3),borderColor:'#d97706',borderDash:[4,3],pointRadius:0,borderWidth:1.5,label:'Caution'},{data:Array(28).fill(1.5),borderColor:'#dc2626',borderDash:[4,3],pointRadius:0,borderWidth:1.5,label:'Risk'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10},maxTicksLimit:7}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},min:0,max:2.5}}}});
+  });
+}
+
+function calcACWR(ps,refDate){
+  const ref=refDate?new Date(refDate):new Date();
+  ref.setHours(23,59,59,999);
+  const MS7=7*86400000,MS28=28*86400000;
+  const acute=ps.filter(s=>{const d=new Date(s.date);return ref-d>=0&&ref-d<MS7;}).reduce((s,x)=>s+(x.load||0),0);
+  const chronic=ps.filter(s=>{const d=new Date(s.date);return ref-d>=0&&ref-d<MS28;}).reduce((s,x)=>s+(x.load||0),0)/4;
+  return{acute:Math.round(acute),chronic:Math.round(chronic),ratio:chronic>0?+((acute/chronic).toFixed(2)):null};
+}
+function acwrBadge(r){
+  if(!r)return'<span class="badge badge-gray">No data</span>';
+  if(r<0.8)return`<span class="badge badge-blue">↓ ${r} Under-load</span>`;
+  if(r<=1.3)return`<span class="badge badge-green">✓ ${r} Optimal</span>`;
+  if(r<=1.5)return`<span class="badge badge-amber">⚠ ${r} Caution</span>`;
+  return`<span class="badge badge-red">✕ ${r} High risk</span>`;
+}
+function acwrColor(r){
+  if(!r)return'var(--text3)';
+  if(r<0.8)return'#1d4ed8';
+  if(r<=1.3)return'#15803d';
+  if(r<=1.5)return'#b45309';
+  return'#dc2626';
+}
+</script>
+</body>
+</html>
