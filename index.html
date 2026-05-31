@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Næsby BK — Load Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#0d0f12;--bg2:#141720;--bg3:#1c2030;--bg4:#232840;--text:#f0f2f7;--text2:#8b90a7;--text3:#4a4f6a;--border:#1e2238;--border2:#262c48;--blue:#4f7cff;--blue2:#3a5fd4;--blue-dim:rgba(79,124,255,.12);--green:#34d17a;--green-dim:rgba(52,209,122,.12);--amber:#f5a623;--amber-dim:rgba(245,166,35,.12);--red:#f54f4f;--red-dim:rgba(245,79,79,.12);--radius:12px;--radius-sm:8px;--radius-xs:5px;--font:'DM Sans',sans-serif;--mono:'DM Mono',monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+.hidden{display:none!important}
+.container{max-width:960px;margin:0 auto;padding:2rem 1.25rem}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-logo{width:32px;height:32px;object-fit:contain}
+.brand-name{font-size:13px;font-weight:600;color:var(--text)}
+.brand-sub{font-size:11px;color:var(--text3);margin-top:1px}
+.topbar-right{display:flex;align-items:center;gap:8px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;margin-bottom:1rem}
+.stat-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.875rem 1rem}
+.stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:6px}
+.stat-value{font-size:24px;font-weight:700;line-height:1;color:var(--text)}
+.stat-unit{font-size:12px;color:var(--text3);font-weight:400;margin-left:3px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media(max-width:640px){.g4{grid-template-columns:1fr 1fr}.g2{grid-template-columns:1fr}.g3{grid-template-columns:1fr 1fr}.i3{grid-template-columns:1fr 1fr!important}.srow,.shdr{grid-template-columns:70px 70px 50px 50px 50px 28px!important;font-size:11px}}
+.slabel{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:.875rem}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;font-family:var(--mono)}
+.b-green{background:var(--green-dim);color:var(--green)}
+.b-amber{background:var(--amber-dim);color:var(--amber)}
+.b-red{background:var(--red-dim);color:var(--red)}
+.b-blue{background:var(--blue-dim);color:var(--blue)}
+.b-gray{background:var(--bg3);color:var(--text3)}
+input,select{padding:8px 11px;font-size:13px;font-family:var(--font);border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg3);color:var(--text);width:100%;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--blue)}
+input::placeholder{color:var(--text3)}
+select option{background:var(--bg2)}
+.ilabel{font-size:11px;color:var(--text3);margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.igroup{margin-bottom:12px}
+.i2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.i3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.btn{padding:8px 16px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--bg3);color:var(--text);font-size:13px;font-family:var(--font);cursor:pointer;font-weight:500;transition:all .15s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg4);border-color:var(--border2)}
+.btn-primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-primary:hover{background:var(--blue2);border-color:var(--blue2)}
+.btn-danger{color:var(--red);border-color:transparent;background:transparent}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.prow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);transition:all .12s}
+.prow:last-child{border-bottom:none}
+.prow:hover{background:var(--bg3);margin:0 -1.25rem;padding:12px 1.25rem;border-radius:var(--radius-sm)}
+.avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;font-family:var(--mono)}
+.shdr{display:grid;grid-template-columns:90px 90px 65px 85px 70px 32px;gap:6px;padding:0 0 8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);margin-bottom:4px;font-weight:700}
+.srow{display:grid;grid-template-columns:90px 90px 65px 85px 70px 32px;gap:6px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.srow:last-child{border-bottom:none}
+.gauge-wrap{position:relative;height:10px;border-radius:5px;margin:.5rem 0;border:1px solid var(--border);overflow:hidden;background:linear-gradient(to right,rgba(79,124,255,.3) 0%,rgba(52,209,122,.3) 22%,rgba(52,209,122,.3) 50%,rgba(245,166,35,.3) 65%,rgba(245,79,79,.3) 80%,rgba(245,79,79,.3) 100%)}
+.gauge-needle{position:absolute;top:-5px;width:3px;height:20px;background:var(--text);border-radius:2px;transform:translateX(-50%);transition:left .6s cubic-bezier(.34,1.56,.64,1)}
+.upload-zone{border:2px dashed var(--border2);border-radius:var(--radius);padding:2.5rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg3);position:relative}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--blue);background:var(--blue-dim)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.tabs{display:flex;gap:4px;margin-bottom:1.5rem;background:var(--bg3);padding:4px;border-radius:var(--radius-sm);border:1px solid var(--border)}
+.tabx{padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;color:var(--text2);transition:all .15s;border:none;background:none;font-family:var(--font)}
+.tabx.active{background:var(--bg2);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.ttest{width:100%;border-collapse:collapse;font-size:13px}
+.ttest th{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);font-weight:700;padding:6px 10px;text-align:left;border-bottom:1px solid var(--border)}
+.ttest td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--text)}
+.ttest tr:last-child td{border-bottom:none}
+.ttest tr:hover td{background:var(--bg3)}
+.info-box{font-size:12px;color:var(--text2);padding:.75rem 1rem;background:var(--bg3);border-radius:var(--radius-sm);border-left:3px solid var(--blue);line-height:1.6}
+.page-title{font-size:22px;font-weight:700;margin-bottom:4px}
+.page-sub{font-size:13px;color:var(--text2)}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--border2);color:var(--text);padding:10px 18px;border-radius:var(--radius-sm);font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.toast.show{opacity:1}
+.empty{text-align:center;padding:3rem;color:var(--text3);font-size:13px}
+.back-btn{background:none;border:none;cursor:pointer;color:var(--text2);font-size:13px;font-family:var(--font);padding:0;display:flex;align-items:center;gap:6px;margin-bottom:1.25rem}
+.back-btn:hover{color:var(--text)}
+.login-bg{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,rgba(79,124,255,.15) 0%,transparent 70%),var(--bg)}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar" id="topbar" style="display:none">
+  <div class="brand">
+    <img src="https://i.imgur.com/placeholder.png" id="topbar-logo" style="width:32px;height:32px;object-fit:contain" alt="Næsby BK" onerror="this.style.display='none'">
+    <div>
+      <div class="brand-name">Næsby BK Load Management</div>
+      <div class="brand-sub">Drenge Ungdom</div>
+    </div>
+  </div>
+  <div class="topbar-right" id="topbar-right"></div>
+</div>
+
+<!-- LOGIN -->
+<div id="view-login" class="login-bg">
+  <div style="width:100%;max-width:400px;padding:1.5rem;text-align:center">
+    <div style="width:110px;height:110px;margin:0 auto 1.5rem;background:var(--bg3);border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--border2);overflow:hidden">
+      <span style="font-size:22px;font-weight:800;color:var(--blue);letter-spacing:-1px">NBK</span>
+    </div>
+    <div style="font-size:22px;font-weight:700;margin-bottom:4px">Næsby BK</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:2rem">Load Management · Drenge Ungdom</div>
+    <div class="card" style="text-align:left">
+      <div class="igroup"><div class="ilabel">Email</div><input type="email" id="login-email" placeholder="din@email.dk" autocomplete="email"></div>
+      <div class="igroup"><div class="ilabel">Adgangskode</div><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:10px;padding:8px 10px;background:var(--red-dim);border-radius:var(--radius-xs);display:none"></div>
+      <button class="btn btn-primary" style="width:100%;padding:11px;font-size:14px;justify-content:center" onclick="doLogin()" id="login-btn">Log ind</button>
+      <div id="login-debug" style="margin-top:8px;font-size:11px;color:var(--text3);font-family:var(--mono)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- COACH VIEW -->
+<div id="view-coach" class="hidden">
+<div class="container">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;padding-top:.5rem;flex-wrap:wrap;gap:10px">
+    <div><div class="page-title">Squad Overview</div><div class="page-sub">Næsby BK · Drenge Ungdom</div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="showCoachTab('squad')">Squad</button>
+      <button class="btn btn-sm" onclick="showCoachTab('upload-csv')">↑ Import CSV</button>
+      <button class="btn btn-sm" onclick="showCoachTab('log-session')">+ Session</button>
+      <button class="btn btn-sm" onclick="showCoachTab('add-player')">+ Spiller</button>
+    </div>
+  </div>
+
+  <div id="coach-tab-squad">
+    <div id="squad-stats" class="g3" style="margin-bottom:1.25rem"></div>
+    <div class="card">
+      <div class="slabel">Spillere — aktuel ACWR</div>
+      <div id="squad-list"><div class="empty"><div class="spinner"></div></div></div>
+    </div>
+    <div class="card" id="coaches-card">
+      <div class="slabel">Trænere</div>
+      <div class="empty"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div id="coach-tab-player" class="hidden"></div>
+
+  <div id="coach-tab-upload-csv" class="hidden">
+    <button class="back-btn" onclick="showCoachTab('squad')">← Tilbage</button>
+    <div class="page-title" style="margin-bottom:.25rem">Import StatSports CSV</div>
+    <div class="page-sub" style="margin-bottom:1.5rem">Upload en sessionsfil fra Sonra — alle spillere importeres automatisk</div>
+    <div class="card">
+      <div class="upload-zone" id="drop-zone" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+        <input type="file" accept=".csv" onchange="handleCSVFile(this.files[0])">
+        <div style="font-size:36px;margin-bottom:.75rem;pointer-events:none">📂</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:.25rem;pointer-events:none">Træk CSV-fil hertil</div>
+        <div style="font-size:13px;color:var(--text3);pointer-events:none">eller klik for at vælge fil</div>
+        <div style="margin-top:.75rem;font-size:11px;color:var(--text3);font-family:var(--mono);pointer-events:none">StatSports Sonra · Session export · .csv</div>
+      </div>
+      <div id="csv-preview" style="margin-top:1rem"></div>
+    </div>
+    <div class="info-box">Kun rækker med <strong>Drill Title = "Total"</strong> importeres. Spillere matches på navn. RPE sættes til 7 som standard.</div>
+  </div>
+
+  <div id="coach-tab-log-session" class="hidden">
+    <button class="back-btn" onclick="showCoachTab('squad')">← Tilbage</button>
+    <div class="page-title" style="margin-bottom:1.25rem">Log session manuelt</div>
+    <div class="card" style="max-width:600px">
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Spiller</div><select id="ls-player"></select></div>
+        <div class="igroup"><div class="ilabel">Dato</div><input type="date" id="ls-date"></div>
+      </div>
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Session type</div>
+          <select id="ls-type"><option>Match</option><option>MD-1</option><option>MD+1</option><option>MD-2</option><option>Træning</option><option>Recovery</option><option>Hvile</option></select>
+        </div>
+        <div class="igroup"><div class="ilabel">RPE (1–10)</div><input type="number" id="ls-rpe" min="1" max="10" placeholder="7"></div>
+      </div>
+      <div class="slabel">StatSports GPS</div>
+      <div class="i3">
+        <div class="igroup"><div class="ilabel">Total distance (m)</div><input type="number" id="ls-td" placeholder="11901"></div>
+        <div class="igroup"><div class="ilabel">HSR (m)</div><input type="number" id="ls-hsr" placeholder="695"></div>
+        <div class="igroup"><div class="ilabel">Sprint dist (m)</div><input type="number" id="ls-sp" placeholder="534"></div>
+      </div>
+      <div class="i3">
+        <div class="igroup"><div class="ilabel">Antal sprints</div><input type="number" id="ls-ns" placeholder="23"></div>
+        <div class="igroup"><div class="ilabel">Accelerationer</div><input type="number" id="ls-acc" placeholder="44"></div>
+        <div class="igroup"><div class="ilabel">Decelerationer</div><input type="number" id="ls-dec" placeholder="54"></div>
+      </div>
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Max hastighed (m/s)</div><input type="number" id="ls-maxv" placeholder="8.54" step="0.01"></div>
+        <div class="igroup"><div class="ilabel">High intensity dist (m)</div><input type="number" id="ls-hid" placeholder="1952"></div>
+      </div>
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Varighed (min)</div><input type="number" id="ls-dur" placeholder="90"></div>
+        <div class="igroup"><div class="ilabel">Override load</div><input type="number" id="ls-load" placeholder="Auto-beregnet"></div>
+      </div>
+      <div class="info-box">Session load = <strong>Total Distance × (RPE ÷ 10)</strong>. Uden GPS: <strong>Varighed × RPE</strong>.</div>
+      <button class="btn btn-primary" style="width:100%;padding:11px;justify-content:center;margin-top:1rem" onclick="logSession()">Gem session</button>
+    </div>
+  </div>
+
+  <div id="coach-tab-add-player" class="hidden">
+    <button class="back-btn" onclick="showCoachTab('squad')">← Tilbage</button>
+    <div class="page-title" style="margin-bottom:1.25rem">Tilføj spiller / træner</div>
+    <div class="card" style="max-width:500px">
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Fulde navn</div><input type="text" id="ap-name" placeholder="Jonas Hansen"></div>
+        <div class="igroup"><div class="ilabel">Rolle</div>
+          <select id="ap-role"><option value="player">Spiller</option><option value="coach">Træner</option></select>
+        </div>
+      </div>
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Position</div>
+          <select id="ap-pos"><option value="">—</option><option>GK</option><option>CB</option><option>LB</option><option>RB</option><option>DM</option><option>CM</option><option>AM</option><option>LW</option><option>RW</option><option>ST</option></select>
+        </div>
+        <div class="igroup"><div class="ilabel">Fødselsdato</div><input type="date" id="ap-dob"></div>
+      </div>
+      <div class="i2">
+        <div class="igroup"><div class="ilabel">Email (login)</div><input type="email" id="ap-email" placeholder="spiller@email.dk"></div>
+        <div class="igroup"><div class="ilabel">Adgangskode</div><input type="text" id="ap-pass" placeholder="sæt en adgangskode"></div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:11px;justify-content:center" onclick="addPlayer()">Tilføj</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- PLAYER VIEW -->
+<div id="view-player" class="hidden">
+<div class="container">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;padding-top:.5rem;flex-wrap:wrap;gap:10px">
+    <div><div class="page-title" id="player-welcome">Mit dashboard</div><div class="page-sub">Næsby BK · Drenge Ungdom</div></div>
+  </div>
+  <div id="player-tabs" class="tabs" style="display:none">
+    <button class="tabx active" onclick="switchPlayerTab('load',this)">Belastning</button>
+    <button class="tabx" onclick="switchPlayerTab('testing',this)">Testresultater</button>
+  </div>
+  <div id="player-content"><div class="empty"><div class="spinner"></div></div></div>
+  <div id="player-testing" class="hidden"></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SURL='https://rjfkvxpwkgejozumuxmz.supabase.co';
+const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqZmt2eHB3a2dlam96dW11eG16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MjI4NDIsImV4cCI6MjA5NTE5ODg0Mn0.VHN8C9XaPfr0TrLiIzEhffxrlyAexfQoaKxdKuSBOJA';
+const HDR={'apikey':SKEY,'Authorization':'Bearer '+SKEY,'Content-Type':'application/json'};
+let currentUser=null,allPlayers=[],allCoaches=[],chartW=null,chartA=null;
+const AVC=['#4f7cff|#e8eeff','#34d17a|#e6faf0','#f5a623|#fef8ec','#f54f4f|#feeaea','#a78bfa|#f0eeff','#38bdf8|#e6f7ff'];
+const ini=n=>(n||'?').split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+const avc=i=>AVC[i%AVC.length];
+const nv=id=>parseFloat(document.getElementById(id)?.value)||null;
+const apif=(path,opts={})=>fetch(SURL+path,{...opts,headers:{...HDR,...(opts.headers||{})}});
+
+function toast(msg,err=false){const t=document.getElementById('toast');t.textContent=msg;t.style.borderColor=err?'var(--red)':'var(--border2)';t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function calcACWR(ps,refDate){const ref=refDate?new Date(refDate):new Date();ref.setHours(23,59,59,999);const MS7=7*86400000,MS28=28*86400000;const acute=ps.filter(s=>{const d=new Date(s.date);return ref-d>=0&&ref-d<MS7;}).reduce((s,x)=>s+(x.load||0),0);const chronic=ps.filter(s=>{const d=new Date(s.date);return ref-d>=0&&ref-d<MS28;}).reduce((s,x)=>s+(x.load||0),0)/4;return{acute:Math.round(acute),chronic:Math.round(chronic),ratio:chronic>0?+((acute/chronic).toFixed(2)):null};}
+function acwrBadge(r){if(!r)return'<span class="badge b-gray">Ingen data</span>';if(r<0.8)return`<span class="badge b-blue">↓ ${r}</span>`;if(r<=1.3)return`<span class="badge b-green">✓ ${r}</span>`;if(r<=1.5)return`<span class="badge b-amber">⚠ ${r}</span>`;return`<span class="badge b-red">✕ ${r}</span>`;}
+function acwrColor(r){if(!r)return'var(--text3)';if(r<0.8)return'var(--blue)';if(r<=1.3)return'var(--green)';if(r<=1.5)return'var(--amber)';return'var(--red)';}
+
+async function doLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-password').value;
+  const errEl=document.getElementById('login-error');
+  const dbg=document.getElementById('login-debug');
+  const btn=document.getElementById('login-btn');
+  errEl.style.display='none';dbg.textContent='';
+  if(!email||!pass){errEl.textContent='Udfyld email og adgangskode.';errEl.style.display='';return;}
+  btn.textContent='Logger ind…';btn.disabled=true;
+  try{
+    dbg.textContent='Forbinder…';
+    const res=await fetch(`${SURL}/rest/v1/players?email=eq.${encodeURIComponent(email)}&password=eq.${encodeURIComponent(pass)}&select=*`,{headers:{'apikey':SKEY,'Authorization':'Bearer '+SKEY}});
+    const data=await res.json();
+    dbg.textContent='';
+    if(!data||data.length===0){errEl.textContent='Forkert email eller adgangskode.';errEl.style.display='';btn.textContent='Log ind';btn.disabled=false;return;}
+    currentUser=data[0];
+    document.getElementById('view-login').style.display='none';
+    document.getElementById('topbar').style.display='flex';
+    document.getElementById('topbar-right').innerHTML=`<span style="font-size:12px;color:var(--text2)">${currentUser.name}</span><button class="btn btn-sm btn-danger" onclick="doLogout()">Log ud</button>`;
+    if(currentUser.role==='coach'||currentUser.role==='admin'){document.getElementById('view-coach').classList.remove('hidden');loadCoachView();}
+    else{document.getElementById('view-player').classList.remove('hidden');loadPlayerView(currentUser);}
+  }catch(err){dbg.textContent='Fejl: '+err.message;errEl.textContent='Forbindelsesfejl.';errEl.style.display='';}
+  btn.textContent='Log ind';btn.disabled=false;
+}
+
+function doLogout(){currentUser=null;document.getElementById('topbar').style.display='none';['view-coach','view-player'].forEach(v=>document.getElementById(v).classList.add('hidden'));document.getElementById('view-login').style.display='flex';document.getElementById('login-password').value='';}
+
+function showCoachTab(tab){['squad','player','upload-csv','log-session','add-player'].forEach(t=>{const el=document.getElementById('coach-tab-'+t);if(el)el.classList.add('hidden');});const el=document.getElementById('coach-tab-'+tab);if(el)el.classList.remove('hidden');}
+
+async function loadCoachView(){
+  showCoachTab('squad');
+  const res=await apif('/rest/v1/players?select=*&order=name');
+  const allData=await res.json();
+  allPlayers=allData.filter(p=>p.role==='player'||!p.role);
+  allCoaches=allData.filter(p=>p.role==='coach'||p.role==='admin');
+  const sel=document.getElementById('ls-player');
+  if(sel)sel.innerHTML=allPlayers.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  const dateEl=document.getElementById('ls-date');if(dateEl)dateEl.value=new Date().toISOString().split('T')[0];
+  renderSquad();
+}
+
+async function renderSquad(){
+  const res=await apif('/rest/v1/sessions?select=*');
+  const allSessions=await res.json()||[];
+  const acwrList=allPlayers.map(p=>({...p,acwr:calcACWR(allSessions.filter(s=>s.player_id===p.id))}));
+  const highRisk=acwrList.filter(p=>p.acwr.ratio>1.5).length;
+  const caution=acwrList.filter(p=>p.acwr.ratio>1.3&&p.acwr.ratio<=1.5).length;
+  document.getElementById('squad-stats').innerHTML=`<div class="stat-card"><div class="stat-label">Spillere</div><div class="stat-value">${allPlayers.length}</div></div><div class="stat-card" style="border-color:var(--amber)"><div class="stat-label" style="color:var(--amber)">Advarsel</div><div class="stat-value" style="color:var(--amber)">${caution}</div></div><div class="stat-card" style="border-color:var(--red)"><div class="stat-label" style="color:var(--red)">Høj risiko</div><div class="stat-value" style="color:var(--red)">${highRisk}</div></div>`;
+  const list=document.getElementById('squad-list');
+  if(!allPlayers.length){list.innerHTML='<div class="empty">Ingen spillere endnu. Klik "+ Spiller" for at tilføje.</div>';}
+  else {
+    list.innerHTML=acwrList.map((p,i)=>{
+      const [ac,fc]=avc(i).split('|');
+      const ps=allSessions.filter(s=>s.player_id===p.id);
+      const last=[...ps].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+      const lastDate=last?new Date(last.date).toLocaleDateString('da-DK',{day:'numeric',month:'short'}):'—';
+      return`<div class="prow">
+        <div class="avatar" style="width:38px;height:38px;background:${ac};color:${fc};cursor:pointer" onclick="openPlayerDetail('${p.id}')">${ini(p.name)}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="openPlayerDetail('${p.id}')">
+          <div style="font-size:14px;font-weight:600">${p.name}</div>
+          <div style="font-size:12px;color:var(--text3)">${p.position||''} · ${ps.length} session${ps.length!==1?'er':''} · sidst: ${lastDate}</div>
+        </div>
+        <div>${acwrBadge(p.acwr.ratio)}</div>
+        <button class="btn btn-sm" style="margin-left:6px" onclick="showEditPlayer('${p.id}',event)" title="Rediger">✏️</button>
+        <button class="btn btn-sm btn-danger" style="margin-left:2px" onclick="deletePlayer('${p.id}','${p.name.replace(/'/g,"\\'")}',event)" title="Slet">🗑</button>
+        <span style="color:var(--text3);margin-left:4px;font-size:16px;cursor:pointer" onclick="openPlayerDetail('${p.id}')">›</span>
+      </div>`;
+    }).join('');
+  }
+
+  // Coaches section
+  const coachCard = document.getElementById('coaches-card');
+  if(coachCard) {
+    if(!allCoaches.length){
+      coachCard.innerHTML='<div class="slabel">Trænere</div><div class="empty" style="padding:1rem 0">Ingen trænere endnu.</div>';
+    } else {
+      coachCard.innerHTML=`<div class="slabel">Trænere</div>`+allCoaches.map((p,i)=>{
+        const [ac,fc]=avc(i+6).split('|');
+        return`<div class="prow">
+          <div class="avatar" style="width:38px;height:38px;background:${ac};color:${fc}">${ini(p.name)}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600">${p.name}</div>
+            <div style="font-size:12px;color:var(--text3)">${p.email||''} · Træner</div>
+          </div>
+          <button class="btn btn-sm" style="margin-left:6px" onclick="showEditPlayer('${p.id}',event)" title="Rediger">✏️</button>
+          <button class="btn btn-sm btn-danger" style="margin-left:2px" onclick="deletePlayer('${p.id}','${p.name.replace(/'/g,"\\'")}',event)" title="Slet">🗑</button>
+        </div>`;
+      }).join('');
+    }
+  }
+}
+
+async function deletePlayer(playerId,playerName,event){
+  event.stopPropagation();
+  if(!confirm(`Slet ${playerName} og alle tilhørende data? Dette kan ikke fortrydes.`))return;
+  await apif(`/rest/v1/sessions?player_id=eq.${playerId}`,{method:'DELETE'});
+  await apif(`/rest/v1/test_results?player_id=eq.${playerId}`,{method:'DELETE'});
+  await apif(`/rest/v1/players?id=eq.${playerId}`,{method:'DELETE'});
+  toast(`${playerName} slettet`);
+  loadCoachView();
+}
+
+async function openPlayerDetail(playerId){
+  showCoachTab('player');
+  const player=allPlayers.find(p=>p.id===playerId);
+  const [sRes,tRes]=await Promise.all([apif(`/rest/v1/sessions?player_id=eq.${playerId}&order=date`),apif(`/rest/v1/test_results?player_id=eq.${playerId}&order=test_date.desc`)]);
+  const sessions=await sRes.json()||[];const tests=await tRes.json()||[];
+  renderPlayerDetail(player,sessions,tests,'coach-tab-player',true);
+}
+
+async function addPlayer(){
+  const name=document.getElementById('ap-name').value.trim();
+  const email=document.getElementById('ap-email').value.trim();
+  const pass=document.getElementById('ap-pass').value.trim();
+  const pos=document.getElementById('ap-pos').value;
+  const role=document.getElementById('ap-role').value;
+  const dob=document.getElementById('ap-dob').value||null;
+  if(!name||!email||!pass){toast('Udfyld alle felter',true);return;}
+  const res=await apif('/rest/v1/players',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify({name,email,password:pass,position:pos,role,dob})});
+  if(!res.ok){toast('Fejl: '+await res.text(),true);return;}
+  toast(name+' tilføjet!');
+  ['ap-name','ap-email','ap-pass'].forEach(id=>{document.getElementById(id).value='';});
+  loadCoachView();showCoachTab('squad');
+}
+
+async function logSession(){
+  const playerId=document.getElementById('ls-player').value;
+  const date=document.getElementById('ls-date').value;
+  if(!playerId||!date){toast('Vælg spiller og dato',true);return;}
+  const player=allPlayers.find(p=>p.id===playerId);
+  const td=nv('ls-td'),rpe=nv('ls-rpe'),dur=nv('ls-dur'),ov=nv('ls-load');
+  const load=ov||(td&&rpe?Math.round(td*(rpe/10)):dur&&rpe?Math.round(dur*rpe):null);
+  const res=await apif('/rest/v1/sessions',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify({player_id:playerId,player_name:player?.name||'',date,type:document.getElementById('ls-type').value,rpe,td,hsr:nv('ls-hsr'),sp:nv('ls-sp'),ns:nv('ls-ns'),acc:nv('ls-acc'),dec:nv('ls-dec'),maxv:nv('ls-maxv'),hid:nv('ls-hid'),dur,load})});
+  if(!res.ok){toast('Fejl: '+await res.text(),true);return;}
+  toast('Session gemt!');
+  ['ls-td','ls-hsr','ls-sp','ls-ns','ls-acc','ls-dec','ls-maxv','ls-hid','ls-dur','ls-load','ls-rpe'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderSquad();showCoachTab('squad');
+}
+
+async function deleteSession(sessionId,playerId,isCoach){
+  if(!confirm('Slet denne session?'))return;
+  await apif(`/rest/v1/sessions?id=eq.${sessionId}`,{method:'DELETE'});
+  toast('Session slettet');
+  if(isCoach)openPlayerDetail(playerId);else loadPlayerView(currentUser);
+}
+
+function handleDrop(e){e.preventDefault();document.getElementById('drop-zone').classList.remove('drag');const file=e.dataTransfer.files[0];if(file)handleCSVFile(file);}
+function handleCSVFile(file){if(!file)return;const reader=new FileReader();reader.onload=e=>parseCSV(e.target.result,file.name);reader.readAsText(file);}
+
+function parseCSV(text,filename){
+  const lines=text.trim().split('\n');
+  const headers=lines[0].replace(/^\uFEFF/,'').split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+  const rows=lines.slice(1).map(line=>{const vals=[];let cur='',inQ=false;for(const c of line){if(c==='"')inQ=!inQ;else if(c===','&&!inQ){vals.push(cur.trim());cur='';}else cur+=c;}vals.push(cur.trim());return Object.fromEntries(headers.map((h,i)=>[h,vals[i]||'']));});
+  const totalRows=rows.filter(r=>(r['Drill Title']||'').trim().toLowerCase()==='total');
+  if(!totalRows.length){document.getElementById('csv-preview').innerHTML='<div class="info-box" style="border-color:var(--red)">Ingen "Total" rækker fundet.</div>';return;}
+  const preview=totalRows.map(r=>`<tr><td>${r['Player Name']||'—'}</td><td>${r['Session Date']||'—'}</td><td>${r['Session Name']||'—'}</td><td>${r['Total Distance']||'—'}</td><td>${r['High Speed Running']||'—'}</td><td>${r['Max Speed']||'—'}</td></tr>`).join('');
+  const rowsEnc=encodeURIComponent(JSON.stringify(totalRows));
+  document.getElementById('csv-preview').innerHTML=`<div class="slabel" style="margin-bottom:.5rem">${totalRows.length} spillere fundet i ${filename}</div><div style="overflow-x:auto;margin-bottom:1rem"><table class="ttest"><thead><tr><th>Spiller</th><th>Dato</th><th>Session</th><th>Total dist</th><th>HSR</th><th>Max speed</th></tr></thead><tbody>${preview}</tbody></table></div><button class="btn btn-primary" style="width:100%;justify-content:center;padding:11px" id="import-btn" onclick="importCSVRows(decodeURIComponent('${rowsEnc}'))">Importer ${totalRows.length} session${totalRows.length!==1?'er':''}</button>`;
+}
+
+async function importCSVRows(rowsStr){
+  const rows=JSON.parse(rowsStr);
+  const btn=document.getElementById('import-btn');if(btn){btn.textContent='Importerer…';btn.disabled=true;}
+  let imported=0,skipped=[];
+  for(const r of rows){
+    const pName=(r['Player Name']||'').trim();
+    const player=allPlayers.find(p=>p.name.toLowerCase()===pName.toLowerCase());
+    if(!player){skipped.push(pName);continue;}
+    const dp=(r['Session Date']||'').split('/');
+    const date=dp.length===3?`${dp[2]}-${dp[1].padStart(2,'0')}-${dp[0].padStart(2,'0')}`:'';
+    if(!date){skipped.push(pName);continue;}
+    const td=parseFloat(r['Total Distance'])||null;
+    const load=td?Math.round(td*0.7):null;
+    await apif('/rest/v1/sessions',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify({player_id:player.id,player_name:player.name,date,type:r['Session Name']||'Session',rpe:7,td,hsr:parseFloat(r['High Speed Running'])||null,sp:parseFloat(r['Sprint Distance'])||null,ns:parseFloat(r['No of Sprints'])||null,acc:parseFloat(r['Accelerations'])||null,dec:parseFloat(r['Decelerations'])||null,maxv:parseFloat(r['Max Speed'])||null,hid:parseFloat(r['High Intensity Distance'])||null,dur:null,load})});
+    imported++;
+  }
+  let msg=`✓ ${imported} session${imported!==1?'er':''} importeret`;
+  if(skipped.length)msg+=` · ${skipped.length} sprunget over: ${skipped.join(', ')}`;
+  toast(msg,skipped.length>0&&imported===0);
+  if(btn){btn.textContent='Importeret ✓';btn.disabled=true;}
+  renderSquad();
+}
+
+async function loadPlayerView(player){
+  document.getElementById('player-welcome').textContent='Hej, '+player.name.split(' ')[0]+' 👋';
+  document.getElementById('player-tabs').style.display='flex';
+  const [sRes,tRes]=await Promise.all([apif(`/rest/v1/sessions?player_id=eq.${player.id}&order=date`),apif(`/rest/v1/test_results?player_id=eq.${player.id}&order=test_date.desc`)]);
+  const sessions=await sRes.json()||[];const tests=await tRes.json()||[];
+  renderPlayerDetail(player,sessions,tests,'player-content',false);
+  renderTestingTab(player,tests,'player-testing');
+}
+
+function switchPlayerTab(tab,btn){document.querySelectorAll('.tabx').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.getElementById('player-content').classList.toggle('hidden',tab!=='load');document.getElementById('player-testing').classList.toggle('hidden',tab!=='testing');}
+
+function renderPlayerDetail(player,ps,tests,containerId,isCoach){
+  if(chartW){try{chartW.destroy()}catch(e){}}if(chartA){try{chartA.destroy()}catch(e){}}
+  const ac2=calcACWR(ps);const ratio=ac2.ratio;
+  const idx=allPlayers.findIndex(p=>p.id===player.id);
+  const [abg,afg]=avc(idx<0?0:idx).split('|');
+  const needlePct=ratio?Math.min(97,Math.max(3,(ratio/2)*100)):50;
+  let rec='';
+  if(!ratio)rec='Ingen sessiondata endnu.';
+  else if(ratio<0.8)rec='⬇ Under-belastet. Overvej gradvist at øge træningsvolumen.';
+  else if(ratio<=1.3)rec='✓ Optimal belastningszone. Hold det nuværende niveau.';
+  else if(ratio<=1.5)rec='⚠ Tæt på højrisikozone. Prioritér restitution i næste session.';
+  else rec='🔴 Højrisikozone. Reducer belastningen markant. Hvile og restitution er prioritet.';
+  const weeks=[];
+  for(let w=5;w>=0;w--){const end=new Date();end.setHours(23,59,59,999);const wEnd=new Date(end);wEnd.setDate(wEnd.getDate()-w*7);const wStart=new Date(wEnd);wStart.setDate(wStart.getDate()-6);const load=ps.filter(s=>{const d=new Date(s.date);return d>=wStart&&d<=wEnd;}).reduce((s,x)=>s+(x.load||0),0);weeks.push({label:'U'+(6-w),load});}
+  const acwrTL=[];for(let d=27;d>=0;d--){const ref=new Date();ref.setDate(ref.getDate()-d);acwrTL.push({date:ref.toLocaleDateString('da-DK',{day:'numeric',month:'short'}),ratio:calcACWR(ps,ref).ratio});}
+  const lastSession=[...ps].sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+  const sorted=[...ps].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const lastTest=tests&&tests[0];
+  document.getElementById(containerId).innerHTML=`
+    ${isCoach?'<button class="back-btn" onclick="showCoachTab(\'squad\')">← Squad</button>':''}
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:1.5rem">
+      <div class="avatar" style="width:52px;height:52px;font-size:16px;background:${abg};color:${afg}">${ini(player.name)}</div>
+      <div style="flex:1"><div style="font-size:20px;font-weight:700">${player.name}</div>
+      <div style="font-size:13px;color:var(--text2)">${player.position||''} · ${ps.length} sessioner logget</div></div>
+      ${isCoach?`<button class="btn btn-sm" onclick="showTestForm('${player.id}','${player.name.replace(/'/g,"\\'")}')">+ Testresultat</button>`:''}
+    </div>
+    <div class="g4" style="margin-bottom:1rem">
+      <div class="stat-card"><div class="stat-label">ACWR</div><div class="stat-value" style="color:${acwrColor(ratio)}">${ratio||'—'}</div></div>
+      <div class="stat-card"><div class="stat-label">Akut (7d)</div><div class="stat-value">${ac2.acute}<span class="stat-unit">au</span></div></div>
+      <div class="stat-card"><div class="stat-label">Kronisk gns (28d)</div><div class="stat-value">${ac2.chronic}<span class="stat-unit">au</span></div></div>
+      <div class="stat-card"><div class="stat-label">Status</div><div style="margin-top:8px">${acwrBadge(ratio)}</div></div>
+    </div>
+    <div class="card">
+      <div class="slabel">ACWR Belastningsmåler</div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:6px;font-family:var(--mono)"><span>&lt;0.8 Under</span><span>0.8–1.3 Optimal</span><span>1.3–1.5 Advarsel</span><span>&gt;1.5 Risiko</span></div>
+      <div class="gauge-wrap"><div class="gauge-needle" style="left:${needlePct}%"></div></div>
+      <div class="info-box" style="margin-top:.875rem">${rec}</div>
+    </div>
+    ${lastTest?`<div class="card"><div class="slabel">Seneste testresultater — ${new Date(lastTest.test_date).toLocaleDateString('da-DK',{day:'numeric',month:'long',year:'numeric'})}</div>
+    <div class="g4">
+      ${lastTest.yoyo?`<div class="stat-card"><div class="stat-label">Yo-Yo</div><div style="font-size:16px;font-weight:700">${lastTest.yoyo}<span class="stat-unit">m</span></div></div>`:''}
+      ${lastTest.cmj?`<div class="stat-card"><div class="stat-label">CMJ</div><div style="font-size:16px;font-weight:700">${lastTest.cmj}<span class="stat-unit">cm</span></div></div>`:''}
+      ${lastTest.weight?`<div class="stat-card"><div class="stat-label">Vægt</div><div style="font-size:16px;font-weight:700">${lastTest.weight}<span class="stat-unit">kg</span></div></div>`:''}
+      ${lastTest.height?`<div class="stat-card"><div class="stat-label">Højde</div><div style="font-size:16px;font-weight:700">${lastTest.height}<span class="stat-unit">cm</span></div></div>`:''}
+    </div></div>`:''}
+    <div class="g2" style="margin-bottom:1rem;align-items:start">
+      <div class="card"><div class="slabel">Ugentlig belastning — 6 uger</div><div style="position:relative;height:190px"><canvas id="cw-${containerId}"></canvas></div></div>
+      <div class="card"><div class="slabel">ACWR trend — 28 dage</div><div style="position:relative;height:190px"><canvas id="ca-${containerId}"></canvas></div></div>
+    </div>
+    ${lastSession?`<div class="card"><div class="slabel">Seneste session — ${new Date(lastSession.date).toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'})} · ${lastSession.type}</div>
+    <div class="g4">
+      ${lastSession.td?`<div class="stat-card"><div class="stat-label">Total dist</div><div style="font-size:16px;font-weight:700">${(+lastSession.td).toLocaleString()}<span class="stat-unit">m</span></div></div>`:''}
+      ${lastSession.hsr?`<div class="stat-card"><div class="stat-label">HSR</div><div style="font-size:16px;font-weight:700">${lastSession.hsr}<span class="stat-unit">m</span></div></div>`:''}
+      ${lastSession.maxv?`<div class="stat-card"><div class="stat-label">Max hastighed</div><div style="font-size:16px;font-weight:700">${lastSession.maxv}<span class="stat-unit">m/s</span></div></div>`:''}
+      ${lastSession.load?`<div class="stat-card"><div class="stat-label">Session load</div><div style="font-size:16px;font-weight:700">${lastSession.load}<span class="stat-unit">au</span></div></div>`:''}
+    </div></div>`:''}
+    <div class="card">
+      <div class="slabel">Sessionshistorik</div>
+      <div class="shdr"><span>Dato</span><span>Type</span><span>Load</span><span>Distance</span><span>ACWR</span><span></span></div>
+      ${sorted.map(s=>{const r=calcACWR(ps,new Date(s.date)).ratio;return`<div class="srow">
+        <span style="color:var(--text2);font-family:var(--mono);font-size:12px">${new Date(s.date).toLocaleDateString('da-DK',{day:'numeric',month:'short'})}</span>
+        <span>${s.type}</span><span style="font-weight:600;font-family:var(--mono)">${s.load||'—'}</span>
+        <span style="color:var(--text2);font-family:var(--mono);font-size:12px">${s.td?(+s.td).toLocaleString()+'m':'—'}</span>
+        <span style="color:${acwrColor(r)};font-weight:700;font-family:var(--mono)">${r?r.toFixed(2):'—'}</span>
+        ${isCoach?`<button class="btn btn-danger btn-sm" style="padding:2px 6px" onclick="deleteSession('${s.id}','${player.id}',true)">✕</button>`:'<span></span>'}
+      </div>`;}).join('')||'<div class="empty" style="padding:1.5rem 0">Ingen sessioner endnu.</div>'}
+    </div>`;
+  requestAnimationFrame(()=>{
+    const gc='rgba(255,255,255,.05)';const tc='var(--text3)';
+    const wc=document.getElementById('cw-'+containerId);
+    if(wc)chartW=new Chart(wc,{type:'bar',data:{labels:weeks.map(w=>w.label),datasets:[{data:weeks.map(w=>w.load),backgroundColor:'rgba(79,124,255,.7)',borderRadius:6,label:'Load'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:11}}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}}}}}});
+    const ac3=document.getElementById('ca-'+containerId);
+    if(ac3)chartA=new Chart(ac3,{type:'line',data:{labels:acwrTL.map(p=>p.date),datasets:[{data:acwrTL.map(p=>p.ratio),borderColor:'#4f7cff',backgroundColor:'rgba(79,124,255,.08)',fill:true,tension:0.35,pointRadius:2,label:'ACWR'},{data:Array(28).fill(1.3),borderColor:'#f5a623',borderDash:[4,3],pointRadius:0,borderWidth:1.5,label:'Advarsel'},{data:Array(28).fill(1.5),borderColor:'#f54f4f',borderDash:[4,3],pointRadius:0,borderWidth:1.5,label:'Risiko'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gc},ticks:{color:tc,font:{size:10},maxTicksLimit:7}},y:{grid:{color:gc},ticks:{color:tc,font:{size:11}},min:0,max:2.5}}}});
+  });
+}
+
+function renderTestingTab(player,tests,containerId){
+  const el=document.getElementById(containerId);
+  if(!tests||!tests.length){el.innerHTML='<div class="empty">Ingen testresultater endnu.</div>';return;}
+  el.innerHTML=`<div class="card"><div class="slabel">Testhistorik</div><div style="overflow-x:auto"><table class="ttest"><thead><tr><th>Dato</th><th>Vægt</th><th>Højde</th><th>Yo-Yo</th><th>CMJ</th><th>Sprint 10m</th><th>Sprint 30m</th><th>Max vel</th></tr></thead><tbody>${tests.map(t=>`<tr><td style="font-family:var(--mono);font-size:12px">${new Date(t.test_date).toLocaleDateString('da-DK',{day:'numeric',month:'short',year:'numeric'})}</td><td>${t.weight?t.weight+'kg':'—'}</td><td>${t.height?t.height+'cm':'—'}</td><td>${t.yoyo?t.yoyo+'m':'—'}</td><td>${t.cmj?t.cmj+'cm':'—'}</td><td>${t.sprint_10?t.sprint_10+'s':'—'}</td><td>${t.sprint_30?t.sprint_30+'s':'—'}</td><td>${t.max_velocity?t.max_velocity+'m/s':'—'}</td></tr>`).join('')}</tbody></table></div></div>`;
+}
+
+function showTestForm(playerId,playerName){
+  const existing=document.getElementById('test-modal');if(existing)existing.remove();
+  const modal=document.createElement('div');
+  modal.id='test-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.innerHTML=`<div class="card" style="max-width:540px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div style="font-size:16px;font-weight:700">Testresultat — ${playerName}</div>
+      <button class="btn btn-sm" onclick="document.getElementById('test-modal').remove()">✕</button>
+    </div>
+    <div class="i2">
+      <div class="igroup"><div class="ilabel">Testdato</div><input type="date" id="tf-date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div class="igroup"><div class="ilabel">Test block</div><input type="text" id="tf-block" placeholder="f.eks. Januar 2026"></div>
+    </div>
+    <div class="slabel">Antropometri</div>
+    <div class="i2"><div class="igroup"><div class="ilabel">Vægt (kg)</div><input type="number" id="tf-weight" step="0.1" placeholder="75.0"></div><div class="igroup"><div class="ilabel">Højde (cm)</div><input type="number" id="tf-height" step="0.1" placeholder="182.0"></div></div>
+    <div class="slabel">Sprint</div>
+    <div class="i3"><div class="igroup"><div class="ilabel">10m (s)</div><input type="number" id="tf-s10" step="0.01" placeholder="1.75"></div><div class="igroup"><div class="ilabel">30m (s)</div><input type="number" id="tf-s30" step="0.01" placeholder="4.10"></div><div class="igroup"><div class="ilabel">Max vel (m/s)</div><input type="number" id="tf-maxv" step="0.01" placeholder="8.5"></div></div>
+    <div class="slabel">Spring</div>
+    <div class="i3"><div class="igroup"><div class="ilabel">CMJ (cm)</div><input type="number" id="tf-cmj" step="0.1" placeholder="38"></div><div class="igroup"><div class="ilabel">SJ (cm)</div><input type="number" id="tf-sj" step="0.1" placeholder="34"></div><div class="igroup"><div class="ilabel">Broad jump (cm)</div><input type="number" id="tf-bj" step="0.1" placeholder="220"></div></div>
+    <div class="slabel">Aerob kapacitet</div>
+    <div class="i2"><div class="igroup"><div class="ilabel">Yo-Yo (m)</div><input type="number" id="tf-yoyo" placeholder="960"></div><div class="igroup"><div class="ilabel">VO2max (ml/kg/min)</div><input type="number" id="tf-vo2" step="0.5" placeholder="55"></div></div>
+    <button class="btn btn-primary" style="width:100%;padding:11px;justify-content:center" onclick="saveTestResult('${playerId}','${playerName.replace(/'/g,"\\'")}')">Gem testresultat</button>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+async function saveTestResult(playerId,playerName){
+  const date=document.getElementById('tf-date').value;
+  if(!date){toast('Vælg en dato',true);return;}
+  const body={player_id:playerId,player_name:playerName,test_date:date,test_block:document.getElementById('tf-block').value||null,weight:nv('tf-weight'),height:nv('tf-height'),sprint_10:nv('tf-s10'),sprint_30:nv('tf-s30'),max_velocity:nv('tf-maxv'),cmj:nv('tf-cmj'),sj:nv('tf-sj'),broad_jump:nv('tf-bj'),yoyo:nv('tf-yoyo'),vo2max:nv('tf-vo2')};
+  const res=await apif('/rest/v1/test_results',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify(body)});
+  if(!res.ok){toast('Fejl: '+await res.text(),true);return;}
+  toast('Testresultat gemt!');
+  document.getElementById('test-modal').remove();
+  openPlayerDetail(playerId);
+}
+
+function showEditPlayer(playerId, event) {
+  event.stopPropagation();
+  const player = allPlayers.find(p => p.id === playerId);
+  if (!player) return;
+  const existing = document.getElementById('edit-modal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'edit-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem';
+  modal.innerHTML = `<div class="card" style="max-width:460px;width:100%;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+      <div style="font-size:16px;font-weight:700">Rediger — ${player.name}</div>
+      <button class="btn btn-sm" onclick="document.getElementById('edit-modal').remove()">✕</button>
+    </div>
+    <div class="i2">
+      <div class="igroup"><div class="ilabel">Fulde navn</div><input type="text" id="ep-name" value="${player.name||''}"></div>
+      <div class="igroup"><div class="ilabel">Position</div>
+        <select id="ep-pos">
+          <option value="">—</option>
+          ${['GK','CB','LB','RB','DM','CM','AM','LW','RW','ST'].map(p=>`<option${player.position===p?' selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="igroup"><div class="ilabel">Email (login)</div><input type="email" id="ep-email" value="${player.email||''}"></div>
+    <div class="igroup">
+      <div class="ilabel">Ny adgangskode</div>
+      <input type="text" id="ep-pass" placeholder="Lad stå tomt for at beholde nuværende">
+    </div>
+    <div class="igroup">
+      <div class="ilabel">Rolle</div>
+      <select id="ep-role">
+        <option value="player"${player.role==='player'?' selected':''}>Spiller</option>
+        <option value="coach"${player.role==='coach'?' selected':''}>Træner</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:11px;justify-content:center" onclick="saveEditPlayer('${playerId}')">Gem ændringer</button>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+async function saveEditPlayer(playerId) {
+  const name = document.getElementById('ep-name').value.trim();
+  const email = document.getElementById('ep-email').value.trim();
+  const pass = document.getElementById('ep-pass').value.trim();
+  const pos = document.getElementById('ep-pos').value;
+  const role = document.getElementById('ep-role').value;
+  if (!name || !email) { toast('Navn og email er påkrævet', true); return; }
+  const updates = { name, email, position: pos, role };
+  if (pass) updates.password = pass;
+  const res = await apif(`/rest/v1/players?id=eq.${playerId}`, {
+    method: 'PATCH',
+    headers: { 'Prefer': 'return=minimal' },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) { toast('Fejl: ' + await res.text(), true); return; }
+  toast('Ændringer gemt!');
+  document.getElementById('edit-modal').remove();
+  loadCoachView();
+}
+
+</script>
+</body>
+</html>
